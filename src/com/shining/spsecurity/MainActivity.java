@@ -7,12 +7,14 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.channels.FileChannel;
+
 import java.util.ArrayList;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserFactory;
 
+
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.app.Activity;
@@ -20,8 +22,10 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 import android.view.Menu;
+import android.widget.TextView;
 
 public class MainActivity extends Activity {
+	
 
 	private final File DATA_DIRECTORY=new File("/sdcard/test");
 	
@@ -29,32 +33,60 @@ public class MainActivity extends Activity {
 	
 	private boolean result_RootCommand=false;
 	
-	private String[] rootCommand=new String[4];
+	private SqliteDao dao;
+	
+	private String[] rootCommand=new String[1];
+	
+	private StringBuilder returnString=new StringBuilder();
+	
+	private TextView text;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
-
-		rootCommand[0]="find /data/data/ -name 'webview.db'|xargs tar czf /sdcard/test/db.tgz";
-		rootCommand[1]="tar zxvf /sdcard/test/db.tgz -C /sdcard/test";
+		text=(TextView)findViewById(R.id.log);
 		
-		rootCommand[2]="find /data/data/ -name '*.xml'|xargs tar czf /sdcard/test/xml.tgz";
-		rootCommand[3]="tar zxvf /sdcard/test/xml.tgz -C /sdcard/test";
+		rootCommand[0]="find data/data/ -name 'webview.db' -o -name '*.xml'|cpio -dmpv sdcard/test";
 		
-		result_RootCommand = runRootCommand(rootCommand);
+		ScanTask scanTask=new ScanTask();
+		scanTask.execute(rootCommand); 
+	}
 	
-		if(result_RootCommand){
-			System.out.println("rootCommand run!");
-		}
+	private class ScanTask extends  AsyncTask<String, Void,Boolean>{
 
-		getFileList(DATA_DIRECTORY);		
+	
+		protected Boolean doInBackground(String... params) {
+			
+			result_RootCommand = runRootCommand(params);
+			
+			if(result_RootCommand){
+				System.out.println("rootCommand run!");
+			}
+			long t1=System.currentTimeMillis();
+			
+			getFileList(DATA_DIRECTORY);
+			
+			long t2=System.currentTimeMillis();
+			
+			Log.v(TAG, "getFileList Time:"+(t2-t1));
+			
+			return true;
+		}
+		
+		protected void onPostExecute(Boolean result){
+			
+			if(result){
+				text.setText(returnString);
+			}
+		}
 	}
 	
 	public static boolean runRootCommand(String[] command) {
         Process process = null;
         DataOutputStream os = null;
         try {
+        
             process = Runtime.getRuntime().exec("su"); 
             os = new DataOutputStream(process.getOutputStream());
             for(String cmd:command){
@@ -62,13 +94,17 @@ public class MainActivity extends Activity {
             }
             os.writeBytes("exit\n");
             os.flush();
-            process.waitFor();
+ 
             BufferedReader br = new BufferedReader(new InputStreamReader(  
-                    process.getInputStream()));  
+                    process.getErrorStream()));  
             String line = null;  
             while ((line = br.readLine()) != null) {  
                 Log.d(TAG, line);  
+                System.out.println(line);
             }  
+            
+            process.waitFor();
+     
             try {  
                 br.close();  
             } catch (Exception e) {  
@@ -79,6 +115,7 @@ public class MainActivity extends Activity {
 				Log.d(TAG, "the device is not rooted, error message: " + e.getMessage());
                 return false;
         } finally {
+        
             try {
                 if (os != null) {
                     os.close();
@@ -103,14 +140,17 @@ public class MainActivity extends Activity {
 		   if(f.isFile()){
 			   
 			   try{
+				   Log.v(TAG, "Now Scanning:"+f);
 				   
 			   if(f.getName().endsWith(".xml") && XMLParser(f)){
 				  
 				   System.out.println("XML:"+f);
-				   
+				   returnString.append("\nXML:"+f);
+		
 			   	}else if(f.getName().equals("webview.db") && DBScaner(f)){
 				   	
 				   	System.out.println("DB:"+f);
+				   	returnString.append("\nDB:"+f);
 			   	}
 			   }catch(Exception e){
 				   e.printStackTrace();
@@ -143,6 +183,7 @@ public class MainActivity extends Activity {
 					String str=parser.nextText();
 					password.add(str);
 					System.out.println("password:"+str);
+					returnString.append("\npassword:"+Util.getInstance().replaceSubString(str,5));
 					result=true;
 				}
 			
@@ -152,6 +193,7 @@ public class MainActivity extends Activity {
 					
 					String str=parser.nextText();
 					System.out.println("email:"+str);
+					returnString.append("\nemail:"+Util.getInstance().replaceSubString(str,5));
 					result=true;
 				}
 			
@@ -160,6 +202,7 @@ public class MainActivity extends Activity {
 
 					String str=parser.nextText();
 					System.out.println("phone:"+str);
+					returnString.append("\nphone:"+Util.getInstance().replaceSubString(str,5));
 					result=true;
 				}
 				
@@ -175,33 +218,25 @@ public class MainActivity extends Activity {
 	private Boolean DBScaner(File file){
 		
 		Boolean result=false;
-		SQLiteDatabase database=null;
-		
 		try { 
         
             if (file.exists()){ 
-         
-            	database = SQLiteDatabase.openOrCreateDatabase(file, null); 
+            	
+            	dao.init(getApplicationContext(), file.toString());
+            	dao=SqliteDao.getInstance();
+            	if(dao.check())
+            		returnString.append(dao.getResult());
+            	dao.close();
+
             }
         } catch (Exception e) { 
         	e.printStackTrace();
         } 
-		
-		Cursor cursor = database.rawQuery("select password from password",
-				new String[] {});
-		while(cursor.moveToNext()){
-			String password=cursor.getString(0);
-			System.out.println("DBPassword:"+password);
-			result=true;
-		}
-		
-		cursor.close();
-		database.close();
-		
 		return result;
 	}
+	
 
-	@Override
+
 	public boolean onCreateOptionsMenu(Menu menu) {
 		// Inflate the menu; this adds items to the action bar if it is present.
 		getMenuInflater().inflate(R.menu.main, menu);
