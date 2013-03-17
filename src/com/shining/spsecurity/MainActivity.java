@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserFactory;
@@ -22,12 +23,15 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 import android.view.Menu;
+import android.view.View;
+import android.view.View.OnClickListener;
+import android.widget.Button;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
 	
 
-	private final File DATA_DIRECTORY=new File("/sdcard/test");
+	private final File DATA_DIRECTORY=new File("/sdcard/test/data/data");
 	
 	private static final String TAG="MainActivity";
 	
@@ -41,16 +45,28 @@ public class MainActivity extends Activity {
 	
 	private TextView text;
 	
+	private Button button_scan;
+	
+	private static int count_op=0;
+	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
+		
 		text=(TextView)findViewById(R.id.log);
+		button_scan=(Button)findViewById(R.id.button_scan);
 		
-		rootCommand[0]="find data/data/ -name 'webview.db' -o -name '*.xml'|cpio -dmpv sdcard/test";
-		
-		ScanTask scanTask=new ScanTask();
-		scanTask.execute(rootCommand); 
+		button_scan.setOnClickListener(new OnClickListener(){
+
+			public void onClick(View v) {
+				
+				rootCommand[0]="find data/data/ -name 'webview.db' -o -name '*.xml'|cpio -dmpv sdcard/test";
+			
+				ScanTask scanTask=new ScanTask();
+				scanTask.execute(rootCommand); 
+			}
+		});
 	}
 	
 	private class ScanTask extends  AsyncTask<String, Void,Boolean>{
@@ -63,13 +79,14 @@ public class MainActivity extends Activity {
 			if(result_RootCommand){
 				System.out.println("rootCommand run!");
 			}
-			long t1=System.currentTimeMillis();
 			
-			getFileList(DATA_DIRECTORY);
+			long t3=System.currentTimeMillis();
 			
-			long t2=System.currentTimeMillis();
+			getFileList_op(DATA_DIRECTORY);
 			
-			Log.v(TAG, "getFileList Time:"+(t2-t1));
+			long t4=System.currentTimeMillis();
+			
+			Log.v(TAG, "getFileList_op Time:"+(t4-t3));
 			
 			return true;
 		}
@@ -130,36 +147,72 @@ public class MainActivity extends Activity {
         return true;
     }
 	
-	private void getFileList(File file){
-
-	   File[] files = file.listFiles();
-
-	   for(int i = 0; i < files.length; i++){
-		   
-		   File f = files[i];
-		   if(f.isFile()){
-			   
-			   try{
-				   Log.v(TAG, "Now Scanning:"+f);
-				   
-			   if(f.getName().endsWith(".xml") && XMLParser(f)){
-				  
-				   System.out.println("XML:"+f);
-				   returnString.append("\nXML:"+f);
+	private void showFileInfo_op(File f){
 		
-			   	}else if(f.getName().equals("webview.db") && DBScaner(f)){
-				   	
-				   	System.out.println("DB:"+f);
-				   	returnString.append("\nDB:"+f);
-			   	}
-			   }catch(Exception e){
-				   e.printStackTrace();
+		 try{
+			   Log.v(TAG, "Now Scanning:"+f);
+			   
+		   if(f.getName().endsWith(".xml") && XMLParser(f)){
+			  
+			   System.out.println("XML:"+f);
+			   returnString.append("\nXML:"+f);
+			   count_op++;
+	
+		   	}else if(f.getName().equals("webview.db") && DBScaner(f)){
+			   	
+			   	System.out.println("DB:"+f);
+			   	returnString.append("\nDB:"+f);
+			   	count_op++;
+		   	}
+		   }catch(Exception e){
+			   e.printStackTrace();
+		   }
+	}
+	
+	private void getFileList_op(File file){
+	
+		  File[] files = file.listFiles();
+		  
+		  LinkedList<File> list=new LinkedList<File>();
+
+		   for(int i = 0; i < files.length; i++){
+			   
+			   File f = files[i];
+			   if(f.isFile()){
+				   
+				   showFileInfo_op(f);
+			   }
+			   else if(f.isDirectory()){
+				   
+				   list.add(f);
 			   }
 		   }
-		   else if(f.isDirectory()){
-			   getFileList(f);
+		   
+		   while(!list.isEmpty()){
+			   
+			  File f=(File) list.removeFirst();
+			  
+			  if(f.isDirectory()){
+				   
+				 files=f.listFiles();
+				   
+				   if(files==null)
+					   continue;
+				   
+				   for(int i=0;i<files.length;i++){
+					   
+					   if(files[i].isDirectory()){
+						   
+						   	list.add(files[i]);
+					   }else{
+						   showFileInfo_op(files[i]);
+					   }
+				   }
+			   }else{
+				   showFileInfo_op(f);
+			   }
 		   }
-	   }
+		   Log.v(TAG, "Count_op:"+ count_op);
 	}
 
 	
@@ -238,7 +291,7 @@ public class MainActivity extends Activity {
 
 
 	public boolean onCreateOptionsMenu(Menu menu) {
-		// Inflate the menu; this adds items to the action bar if it is present.
+	
 		getMenuInflater().inflate(R.menu.main, menu);
 		return true;
 	}
