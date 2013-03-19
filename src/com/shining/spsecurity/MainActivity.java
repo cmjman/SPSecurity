@@ -61,10 +61,17 @@ public class MainActivity extends Activity {
 
 			public void onClick(View v) {
 				
+				File su = new File("/system/bin/su");
+				if (su.exists()){
+				
 				rootCommand[0]="find data/data/ -name 'webview.db' -o -name '*.xml'|cpio -dmpv sdcard/test";
 			
 				ScanTask scanTask=new ScanTask();
 				scanTask.execute(rootCommand); 
+				}else{
+					Log.v(TAG, "Your device is not rooted");
+				}
+				
 			}
 		});
 	}
@@ -102,6 +109,7 @@ public class MainActivity extends Activity {
 	public static boolean runRootCommand(String[] command) {
         Process process = null;
         DataOutputStream os = null;
+        int i=0;
         try {
         
             process = Runtime.getRuntime().exec("su"); 
@@ -121,7 +129,7 @@ public class MainActivity extends Activity {
             }  
             
             process.waitFor();
-     
+            System.out.println(i);
             try {  
                 br.close();  
             } catch (Exception e) {  
@@ -144,6 +152,8 @@ public class MainActivity extends Activity {
                 e.printStackTrace();
             }
         }
+        if(i<0)
+        	return false;
         return true;
     }
 	
