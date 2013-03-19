@@ -154,13 +154,13 @@ public class MainActivity extends Activity {
 			   
 		   if(f.getName().endsWith(".xml") && XMLParser(f)){
 			  
-			   System.out.println("XML:"+f);
+			   Log.v(TAG,"XML:"+f);
 			   returnString.append("\nXML:"+f);
 			   count_op++;
 	
 		   	}else if(f.getName().equals("webview.db") && DBScaner(f)){
 			   	
-			   	System.out.println("DB:"+f);
+		   		Log.v(TAG,"DB:"+f);
 			   	returnString.append("\nDB:"+f);
 			   	count_op++;
 		   	}
