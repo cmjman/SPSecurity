@@ -14,18 +14,39 @@ import java.util.LinkedList;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserFactory;
 
+import com.steema.teechart.TChart;
+import com.steema.teechart.styles.CFrame;
+import com.steema.teechart.styles.CircularGauge;
+import com.steema.teechart.styles.TFrame;
+
+
+
+
 
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
+import android.animation.Animator;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
+import android.animation.Animator.AnimatorListener;
+import android.animation.ValueAnimator.AnimatorUpdateListener;
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
@@ -47,22 +68,49 @@ public class MainActivity extends Activity {
 	
 	private Button button_scan;
 	
+	private CheckBox checkBox;
+	
+	private ProgressDialog progressDialog;
+
+	
+
+	private HoloCircularProgressBar progressBar;
+
+	
 	private static int count_op=0;
+	
+	private static int count_sum=0;
+	
+
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 		
+		DisplayMetrics dm = new DisplayMetrics();  
+   
+        getWindowManager().getDefaultDisplay().getMetrics(dm);  
+   
+        int screenWidth = dm.widthPixels;  
+		
 		text=(TextView)findViewById(R.id.log);
 		button_scan=(Button)findViewById(R.id.button_scan);
+		checkBox=(CheckBox)findViewById(R.id.checkbox_showpw);
+
 		
+		progressBar = (HoloCircularProgressBar) findViewById(R.id.holoCircularProgressBar);
+	
 		button_scan.setOnClickListener(new OnClickListener(){
 
 			public void onClick(View v) {
 				
-				File su = new File("/system/bin/su");
+				
+				
+				File su = new File("/system/xbin/su");
 				if (su.exists()){
+				
+
 				
 				rootCommand[0]="find data/data/ -name 'webview.db' -o -name '*.xml'|cpio -dmpv sdcard/test";
 			
@@ -72,8 +120,47 @@ public class MainActivity extends Activity {
 					Log.v(TAG, "Your device is not rooted");
 				}
 				
+				
+				
 			}
 		});
+	}
+	
+	private void animate(final HoloCircularProgressBar progressBar, final float progress,final AnimatorListener listener) {
+		
+		final ObjectAnimator progressBarAnimator = ObjectAnimator.ofFloat(progressBar, "progress", progress);
+		progressBarAnimator.setDuration(3000);
+
+		progressBarAnimator.addListener(new AnimatorListener() {
+
+			@Override
+			public void onAnimationCancel(final Animator animation) {
+			}
+
+			@Override
+			public void onAnimationEnd(final Animator animation) {
+				progressBar.setProgress(progress);
+			}
+
+			@Override
+			public void onAnimationRepeat(final Animator animation) {
+			}
+
+			@Override
+			public void onAnimationStart(final Animator animation) {
+			}
+		});
+		progressBarAnimator.addListener(listener);
+		progressBarAnimator.reverse();
+		progressBarAnimator.addUpdateListener(new AnimatorUpdateListener() {
+
+			@Override
+			public void onAnimationUpdate(final ValueAnimator animation) {
+				progressBar.setProgress((Float) animation.getAnimatedValue());
+			}
+		});
+		progressBar.setMarkerProgress(progress);
+		progressBarAnimator.start();
 	}
 	
 	private class ScanTask extends  AsyncTask<String, Void,Boolean>{
@@ -82,6 +169,8 @@ public class MainActivity extends Activity {
 		protected Boolean doInBackground(String... params) {
 			
 			result_RootCommand = runRootCommand(params);
+			
+			publishProgress();
 			
 			if(result_RootCommand){
 				System.out.println("rootCommand run!");
@@ -98,18 +187,50 @@ public class MainActivity extends Activity {
 			return true;
 		}
 		
+		protected void onProgressUpdate(Void... params) {
+	         
+			progressDialog=new ProgressDialog(MainActivity.this);
+			progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+			progressDialog.setMessage("扫描中，请稍等！");
+			progressDialog.show();
+			
+	    }
+
 		protected void onPostExecute(Boolean result){
 			
 			if(result){
 				text.setText(returnString);
 			}
+			
+			progressDialog.cancel();
+			
+			System.out.println((float) count_op*1.0/count_sum);
+			
+			animate(progressBar,(float) 0.0,new AnimatorListener() {
+
+				@Override
+				public void onAnimationCancel(final Animator animation) {
+				}
+
+				@Override
+				public void onAnimationEnd(final Animator animation) {
+					animate(progressBar,(float)1.0 -(float)(count_op*0.01),this);
+				}
+
+				@Override
+				public void onAnimationRepeat(final Animator animation) {
+				}
+
+				@Override
+				public void onAnimationStart(final Animator animation) {
+				}
+			});
 		}
 	}
 	
 	public static boolean runRootCommand(String[] command) {
         Process process = null;
         DataOutputStream os = null;
-        int i=0;
         try {
         
             process = Runtime.getRuntime().exec("su"); 
@@ -129,7 +250,6 @@ public class MainActivity extends Activity {
             }  
             
             process.waitFor();
-            System.out.println(i);
             try {  
                 br.close();  
             } catch (Exception e) {  
@@ -152,8 +272,6 @@ public class MainActivity extends Activity {
                 e.printStackTrace();
             }
         }
-        if(i<0)
-        	return false;
         return true;
     }
 	
@@ -162,17 +280,19 @@ public class MainActivity extends Activity {
 		 try{
 			   Log.v(TAG, "Now Scanning:"+f);
 			   
+			   count_sum++;
+			   
 		   if(f.getName().endsWith(".xml") && XMLParser(f)){
 			  
 			   Log.v(TAG,"XML:"+f);
 			   returnString.append("\nXML:"+f);
+			  
 			   count_op++;
-	
 		   	}else if(f.getName().equals("webview.db") && DBScaner(f)){
 			   	
 		   		Log.v(TAG,"DB:"+f);
 			   	returnString.append("\nDB:"+f);
-			   	count_op++;
+			    count_op++;
 		   	}
 		   }catch(Exception e){
 			   e.printStackTrace();
@@ -189,7 +309,7 @@ public class MainActivity extends Activity {
 			   
 			   File f = files[i];
 			   if(f.isFile()){
-				   
+				  
 				   showFileInfo_op(f);
 			   }
 			   else if(f.isDirectory()){
@@ -222,7 +342,7 @@ public class MainActivity extends Activity {
 				   showFileInfo_op(f);
 			   }
 		   }
-		   Log.v(TAG, "Count_op:"+ count_op);
+		   Log.v(TAG, "Count_sum:"+ count_sum + "Count_op:"+count_op);
 	}
 
 	
@@ -243,6 +363,8 @@ public class MainActivity extends Activity {
 			if (i == XmlPullParser.START_TAG && parser.getName().equals("string") 
 											&& parser.getAttributeValue(0).equals("password")) {
 				
+					
+				
 					String str=parser.nextText();
 					password.add(str);
 					System.out.println("password:"+str);
@@ -253,6 +375,8 @@ public class MainActivity extends Activity {
 		
 			if(i == XmlPullParser.START_TAG && parser.getName().equals("string") 
 											&& parser.getAttributeValue(0).equals("email")){
+				
+				
 					
 					String str=parser.nextText();
 					System.out.println("email:"+str);
@@ -262,6 +386,8 @@ public class MainActivity extends Activity {
 			
 			if(i == XmlPullParser.START_TAG && parser.getName().equals("string") 
 					&& parser.getAttributeValue(0).equals("phone")){
+				
+			
 
 					String str=parser.nextText();
 					System.out.println("phone:"+str);
@@ -287,8 +413,13 @@ public class MainActivity extends Activity {
             	
             	dao.init(getApplicationContext(), file.toString());
             	dao=SqliteDao.getInstance();
-            	if(dao.check())
+            	if(dao.check()){
+            		
+            		
+            		
+            	
             		returnString.append(dao.getResult());
+            	}
             	dao.close();
 
             }
