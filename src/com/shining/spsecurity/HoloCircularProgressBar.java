@@ -27,10 +27,6 @@ import android.view.View;
  */
 public class HoloCircularProgressBar extends View {
 
-	/**
-	 * The Constant TAG.
-	 */
-	private static final String TAG = "CircularProgressBar";
 
 	/**
 	 * used to save the super state on configuration change
@@ -59,7 +55,6 @@ public class HoloCircularProgressBar extends View {
 	
 	private int mRatingWidth=10;
 	
-	private int mRatingNumber=100;
 
 	/**
 	 * the paint for the background.
@@ -272,6 +267,7 @@ public class HoloCircularProgressBar extends View {
 	/* (non-Javadoc)
 	 * @see android.view.View#onDraw(android.graphics.Canvas)
 	 */
+	@SuppressLint("DrawAllocation")
 	@Override
 	protected void onDraw(final Canvas canvas) {
 

@@ -15,7 +15,7 @@ public class SqliteDao {
 	private StringBuilder sb=new StringBuilder();
 	
 	public SqliteDao(Context context,String filename) {
-		this.database = context.openOrCreateDatabase(filename,
+		SqliteDao.database = context.openOrCreateDatabase(filename,
 				Context.MODE_PRIVATE, null);
 	}
 	
@@ -43,7 +43,8 @@ public class SqliteDao {
 		while(cursor.moveToNext()){
 			String password=cursor.getString(0);
 			System.out.println("DBPassword:"+password);
-			sb.append("\nDBPassword:"+Util.getInstance().replaceSubString(password,5));
+			Util.getInstance();
+			sb.append("\nDBPassword:"+Util.replaceSubString(password,5));
 		}
 		
 		cursor.close();

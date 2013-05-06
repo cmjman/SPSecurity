@@ -4,8 +4,7 @@ import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
+
 import java.io.InputStreamReader;
 
 import java.util.ArrayList;
@@ -14,18 +13,12 @@ import java.util.LinkedList;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserFactory;
 
-import com.steema.teechart.TChart;
-import com.steema.teechart.styles.CFrame;
-import com.steema.teechart.styles.CircularGauge;
-import com.steema.teechart.styles.TFrame;
-
-
-
-
 
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
+
+
 import android.animation.Animator;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
@@ -33,26 +26,21 @@ import android.animation.Animator.AnimatorListener;
 import android.animation.ValueAnimator.AnimatorUpdateListener;
 import android.app.Activity;
 import android.app.ProgressDialog;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Paint;
+import android.content.Intent;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.ImageView;
-import android.widget.ProgressBar;
-import android.widget.TextView;
+
+
 
 public class MainActivity extends Activity {
 	
 
-	private final File DATA_DIRECTORY=new File("/sdcard/test/data/data");
+	private final File DATA_DIRECTORY=new File(Environment.getExternalStorageDirectory().getPath()+
+											"/SPSecurityCacheData/data/data");
 	
 	private static final String TAG="MainActivity";
 	
@@ -62,13 +50,13 @@ public class MainActivity extends Activity {
 	
 	private String[] rootCommand=new String[1];
 	
-	private StringBuilder returnString=new StringBuilder();
 	
-	private TextView text;
+	private LinkedList<String> list_result=new LinkedList<String>();
 	
 	private Button button_scan;
 	
-	private CheckBox checkBox;
+	private Button button_detail;
+	
 	
 	private ProgressDialog progressDialog;
 
@@ -85,19 +73,16 @@ public class MainActivity extends Activity {
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
+		        
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 		
 		DisplayMetrics dm = new DisplayMetrics();  
-   
         getWindowManager().getDefaultDisplay().getMetrics(dm);  
    
-        int screenWidth = dm.widthPixels;  
-		
-		text=(TextView)findViewById(R.id.log);
 		button_scan=(Button)findViewById(R.id.button_scan);
-		checkBox=(CheckBox)findViewById(R.id.checkbox_showpw);
-
+	
+		button_detail=(Button)findViewById(R.id.button_detail);
 		
 		progressBar = (HoloCircularProgressBar) findViewById(R.id.holoCircularProgressBar);
 	
@@ -105,25 +90,39 @@ public class MainActivity extends Activity {
 
 			public void onClick(View v) {
 				
-				
-				
 				File su = new File("/system/xbin/su");
 				if (su.exists()){
 				
-
+					File f=new File(Environment.getExternalStorageDirectory().getPath()+"/SPSecurityCacheData");
+					if(!f.exists())
+						f.mkdirs();
 				
-				rootCommand[0]="find data/data/ -name 'webview.db' -o -name '*.xml'|cpio -dmpv sdcard/test";
-			
-				ScanTask scanTask=new ScanTask();
-				scanTask.execute(rootCommand); 
+					rootCommand[0]="find data/data/ -name 'webview.db' -o -name '*.xml'|cpio -dmpv sdcard/SPSecurityCacheData";
+				
+					ScanTask scanTask=new ScanTask();
+					scanTask.execute(rootCommand); 
 				}else{
 					Log.v(TAG, "Your device is not rooted");
 				}
-				
-				
-				
 			}
 		});
+		
+	
+		button_detail.setOnClickListener(new OnClickListener(){
+
+			@Override
+			public void onClick(View v) {
+				
+				Intent intent=new Intent(getBaseContext(),DetailActivity.class);
+				intent.putExtra("result", list_result);
+				startActivity(intent);
+				
+			}
+			
+		});
+		
+		button_detail.setClickable(false);
+		
 	}
 	
 	private void animate(final HoloCircularProgressBar progressBar, final float progress,final AnimatorListener listener) {
@@ -199,32 +198,33 @@ public class MainActivity extends Activity {
 		protected void onPostExecute(Boolean result){
 			
 			if(result){
-				text.setText(returnString);
+				button_detail.setClickable(true);
+			
+				progressDialog.cancel();
+				
+				System.out.println((float) count_op*1.0/count_sum);
+				
+				animate(progressBar,(float) 0.0,new AnimatorListener() {
+	
+					@Override
+					public void onAnimationCancel(final Animator animation) {
+					}
+	
+					@Override
+					public void onAnimationEnd(final Animator animation) {
+						animate(progressBar,(float)1.0 -(float)(count_op*0.01),this);
+					}
+	
+					@Override
+					public void onAnimationRepeat(final Animator animation) {
+					}
+	
+					@Override
+					public void onAnimationStart(final Animator animation) {
+					}
+				});
+				
 			}
-			
-			progressDialog.cancel();
-			
-			System.out.println((float) count_op*1.0/count_sum);
-			
-			animate(progressBar,(float) 0.0,new AnimatorListener() {
-
-				@Override
-				public void onAnimationCancel(final Animator animation) {
-				}
-
-				@Override
-				public void onAnimationEnd(final Animator animation) {
-					animate(progressBar,(float)1.0 -(float)(count_op*0.01),this);
-				}
-
-				@Override
-				public void onAnimationRepeat(final Animator animation) {
-				}
-
-				@Override
-				public void onAnimationStart(final Animator animation) {
-				}
-			});
 		}
 	}
 	
@@ -285,13 +285,14 @@ public class MainActivity extends Activity {
 		   if(f.getName().endsWith(".xml") && XMLParser(f)){
 			  
 			   Log.v(TAG,"XML:"+f);
-			   returnString.append("\nXML:"+f);
+			 
+			   list_result.add(f.toString());
 			  
 			   count_op++;
 		   	}else if(f.getName().equals("webview.db") && DBScaner(f)){
 			   	
 		   		Log.v(TAG,"DB:"+f);
-			   	returnString.append("\nDB:"+f);
+		   		list_result.add(f.toString());
 			    count_op++;
 		   	}
 		   }catch(Exception e){
@@ -300,7 +301,7 @@ public class MainActivity extends Activity {
 	}
 	
 	private void getFileList_op(File file){
-	
+		
 		  File[] files = file.listFiles();
 		  
 		  LinkedList<File> list=new LinkedList<File>();
@@ -368,7 +369,8 @@ public class MainActivity extends Activity {
 					String str=parser.nextText();
 					password.add(str);
 					System.out.println("password:"+str);
-					returnString.append("\npassword:"+Util.getInstance().replaceSubString(str,5));
+					Util.getInstance();
+					list_result.add(Util.replaceSubString(str,5));
 					result=true;
 				}
 			
@@ -380,7 +382,9 @@ public class MainActivity extends Activity {
 					
 					String str=parser.nextText();
 					System.out.println("email:"+str);
-					returnString.append("\nemail:"+Util.getInstance().replaceSubString(str,5));
+				
+					Util.getInstance();
+					list_result.add(Util.replaceSubString(str,5));
 					result=true;
 				}
 			
@@ -391,7 +395,9 @@ public class MainActivity extends Activity {
 
 					String str=parser.nextText();
 					System.out.println("phone:"+str);
-					returnString.append("\nphone:"+Util.getInstance().replaceSubString(str,5));
+					Util.getInstance();
+					
+					list_result.add(Util.replaceSubString(str,5));
 					result=true;
 				}
 				
@@ -411,16 +417,17 @@ public class MainActivity extends Activity {
         
             if (file.exists()){ 
             	
-            	dao.init(getApplicationContext(), file.toString());
+            	SqliteDao.init(getApplicationContext(), file.toString());
             	dao=SqliteDao.getInstance();
             	if(dao.check()){
             		
             		
             		
             	
-            		returnString.append(dao.getResult());
+            	
+            		list_result.add(dao.getResult().toString());
             	}
-            	dao.close();
+            	SqliteDao.close();
 
             }
         } catch (Exception e) { 
@@ -429,7 +436,6 @@ public class MainActivity extends Activity {
 		return result;
 	}
 	
-
 
 	public boolean onCreateOptionsMenu(Menu menu) {
 	
